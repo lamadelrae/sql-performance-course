@@ -1,37 +1,88 @@
 -- 1.1 Cria base de exemplo e tabelas
-CREATE DATABASE DemoSQLPerf;
-GO
-USE DemoSQLPerf;
-GO
+CREATE DATABASE DemoSqlPerf;
 
-CREATE TABLE Vendas (
-    VendaID      INT IDENTITY PRIMARY KEY,
-    ClienteID    INT,
-    Valor        DECIMAL(10,2),
-    DataVenda    DATE
-);
+GO
+    USE DemoSqlPerf;
+
+GO
+    CREATE TABLE Vendas (
+        VendaId INT IDENTITY PRIMARY KEY,
+        ClienteId INT,
+        Valor DECIMAL(10, 2),
+        DataVenda DATE
+    );
 
 CREATE TABLE Clientes (
-    ClienteID INT IDENTITY PRIMARY KEY,
-    Nome      VARCHAR(100),
-    Email     VARCHAR(100)
+    ClienteId INT IDENTITY PRIMARY KEY,
+    Nome VARCHAR(100),
+    Email VARCHAR(100)
 );
 
 -- 1.2 Popula com dados de teste
-INSERT INTO Clientes (Nome, Email)
+WITH ClienteCte AS (
+    SELECT
+        ROW_NUMBER() OVER (
+            ORDER BY
+                o1.object_id
+        ) AS Rn,
+        'Cliente ' + CAST(
+            ROW_NUMBER() OVER (
+                ORDER BY
+                    (
+                        SELECT
+                            NULL
+                    )
+            ) AS VARCHAR
+        ) AS Nome,
+        'cliente' + CAST(
+            ROW_NUMBER() OVER (
+                ORDER BY
+                    (
+                        SELECT
+                            NULL
+                    )
+            ) AS VARCHAR
+        ) + '@exemplo.com' AS Email
+    FROM
+        sys.objects o1
+        CROSS JOIN sys.objects o2
+)
+INSERT INTO
+    Clientes (Nome, Email)
 SELECT
-    'Cliente ' + CAST(ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS VARCHAR),
-    'cliente' + CAST(ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS VARCHAR) + '@exemplo.com'
-FROM sys.objects o1
-CROSS JOIN sys.objects o2
-WHERE o1.object_id <= 100;  -- 100 clientes
+    Nome,
+    Email
+FROM
+    ClienteCte
+WHERE
+    Rn <= 100;
 
-INSERT INTO Vendas (ClienteID, Valor, DataVenda)
+-- 100 clientes
+WITH VendasCte AS (
+    SELECT
+        ROW_NUMBER() OVER (
+            ORDER BY
+                o1.object_id
+        ) AS Rn,
+        ABS(CHECKSUM(NEWID())) % 100 + 1 AS ClienteId,
+        -- random ClienteId entre 1 e 100
+        ROUND(RAND(CHECKSUM(NEWID())) * 1000, 2) AS Valor,
+        -- valor até 1000
+        DATEADD(DAY, - ABS(CHECKSUM(NEWID())) % 365, GETDATE()) AS DataVenda
+    FROM
+        sys.objects o1
+        CROSS JOIN sys.objects o2
+)
+INSERT INTO
+    Vendas (ClienteId, Valor, DataVenda)
 SELECT
-    ABS(CHECKSUM(NEWID())) % 100 + 1,  -- random ClienteID entre 1 e 100
-    ROUND(RAND(CHECKSUM(NEWID())) * 1000, 2),  -- valor até 1000
-    DATEADD(DAY, -ABS(CHECKSUM(NEWID())) % 365, GETDATE())
-FROM sys.objects o1
-CROSS JOIN sys.objects o2
-WHERE o1.object_id <= 1000;  -- ~10.000 vendas
+    ClienteId,
+    Valor,
+    DataVenda
+FROM
+    VendasCte
+WHERE
+    Rn <= 1000;
+
+-- 10.000 vendas
 GO
